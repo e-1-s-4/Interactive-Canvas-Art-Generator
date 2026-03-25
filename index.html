@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Canvas Art Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0d1117;
+            overflow: hidden; /* Prevents scrollbars */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Glassmorphism UI */
+        #ui-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 15px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        button {
+            background: #ee6c4d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #ff8264;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(238, 108, 77, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #ee6c4d;
+            color: #ee6c4d;
+        }
+
+        .btn-outline:hover {
+            background: rgba(238, 108, 77, 0.1);
+        }
+
+        #instructions {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            animation: fadeOut 3s forwards;
+            animation-delay: 3s;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="instructions">Move your mouse to create art</div>
+    
+    <canvas id="artCanvas"></canvas>
+
+    <div id="ui-container">
+        <button id="clearBtn" class="btn-outline">Clear Canvas</button>
+        <button id="exportBtn">📸 Export Artwork</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('artCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Setup Canvas Resolution
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particlesArray = [];
+        let hue = 0; // For color shifting
+
+        // Track Mouse
+        const mouse = {
+            x: undefined,
+            y: undefined,
+            isMoving: false
+        };
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
+            mouse.isMoving = true;
+            // Create multiple particles per mouse move
+            for (let i = 0; i < 3; i++) {
+                particlesArray.push(new Particle());
+            }
+        });
+
+        // Touch support for mobile
+        window.addEventListener('touchmove', (event) => {
+            mouse.x = event.touches[0].clientX;
+            mouse.y = event.touches[0].clientY;
+            for (let i = 0; i < 3; i++) {
+                particlesArray.push(new Particle());
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Particle Class
+        class Particle {
+            constructor() {
+                this.x = mouse.x;
+                this.y = mouse.y;
+                // Randomize movement direction
+                this.size = Math.random() * 8 + 1;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * 3 - 1.5;
+                // Assign current hue
+                this.color = `hsl(${hue}, 100%, 50%)`;
+            }
+            
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                // Shrink particle over time
+                if (this.size > 0.1) this.size -= 0.05;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Handle Array of Particles
+        function handleParticles() {
+            for (let i = 0; i < particlesArray.length; i++) {
+                particlesArray[i].update();
+                particlesArray[i].draw();
+
+                // Constellation Effect (Connect close particles)
+                for (let j = i; j < particlesArray.length; j++) {
+                    const dx = particlesArray[i].x - particlesArray[j].x;
+                    const dy = particlesArray[i].y - particlesArray[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 80) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = particlesArray[i].color;
+                        ctx.lineWidth = particlesArray[i].size / 5;
+                        ctx.moveTo(particlesArray[i].x, particlesArray[i].y);
+                        ctx.lineTo(particlesArray[j].x, particlesArray[j].y);
+                        ctx.stroke();
+                        ctx.closePath();
+                    }
+                }
+
+                // Remove tiny particles to save memory
+                if (particlesArray[i].size <= 0.1) {
+                    particlesArray.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            // Dark overlay to create a trailing effect
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            handleParticles();
+            
+            // Cycle through colors
+            hue += 2;
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Start Animation
+        animate();
+
+        // UI Interactions
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            particlesArray = [];
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            // Create a temporary canvas to merge black background + drawing 
+            // (prevents transparent PNG issues)
+            const exportCanvas = document.createElement('canvas');
+            const eCtx = exportCanvas.getContext('2d');
+            exportCanvas.width = canvas.width;
+            exportCanvas.height = canvas.height;
+            
+            eCtx.fillStyle = '#0d1117';
+            eCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            eCtx.drawImage(canvas, 0, 0);
+
+            // Trigger download
+            const link = document.createElement('a');
+            link.download = `GenerativeArt_${new Date().getTime()}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
